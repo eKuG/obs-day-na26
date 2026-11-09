@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+otlp:
+  promote_resource_attributes:
+    - service.name
+    - service.namespace
+    - service.instance.id
+    - process.pid
+    - process.executable.name
+    - container.id
+    - host.name
+  translation_strategy: UnderscoreEscapingWithSuffixes
+storage:
+  tsdb:
+    out_of_order_time_window: 30m

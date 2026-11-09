@@ -1,0 +1,9 @@
+{
+  "pid": "37194",
+  "peer": "172.30.0.66",
+  "bps": 723,
+  "cores": 0.76,
+  "top": "grind_nonce",
+  "share": 100.0,
+  "svc": "cache"
+}

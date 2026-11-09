@@ -1,0 +1,15 @@
+.DS_Store
+__pycache__/
+
+# generated at run time
+rig/baseline.json
+rig/evidence/.crop-*
+rig/tools/node_modules/
+rig/tools/.chrome-profile/
+
+# stage notes, kept local
+rig/DEMO.md
+
+# deck working files: only the PDF is published (the branded template is not ours to redistribute)
+deck/*
+!deck/kubecon-na-2026-ebpf-threat-signals.pdf

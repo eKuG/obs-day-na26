@@ -1,0 +1,21 @@
+# Whole-host CPU profiles, 20 Hz per CPU. service.name = "<executable>:<pid>" so one pid is one Pyroscope service.
+receivers:
+  profiling:
+    samples_per_second: 20
+processors:
+  transform/identity:
+    error_mode: ignore
+    profile_statements:
+      - set(resource.attributes["service.name"], Concat([resource.attributes["process.executable.name"], ":", String(resource.attributes["process.pid"])], "")) where resource.attributes["process.executable.name"] != nil
+      - set(resource.attributes["service.name"], Concat(["pid:", String(resource.attributes["process.pid"])], "")) where resource.attributes["service.name"] == nil
+exporters:
+  otlp_grpc/pyroscope:
+    endpoint: pyroscope:4040
+    tls:
+      insecure: true
+service:
+  pipelines:
+    profiles:
+      receivers: [profiling]
+      processors: [transform/identity]
+      exporters: [otlp_grpc/pyroscope]

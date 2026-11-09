@@ -1,0 +1,288 @@
+{
+  "uid": "threat-signals",
+  "title": "Threat signals: flows + profiles",
+  "tags": [
+    "kubecon",
+    "ebpf"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "10s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "pid",
+        "label": "Port \u2192 PID (OBI)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "query_result(sum by (server_port, service_instance_id) (rate(http_server_request_duration_seconds_count[2m])) > 0)",
+          "refId": "PromVariableQueryEditor-VariableQuery"
+        },
+        "definition": "query_result(sum by (server_port, service_instance_id) (rate(http_server_request_duration_seconds_count[2m])) > 0)",
+        "regex": "/server_port=\"(?<text>[^\"]+)\".*service_instance_id=\"[^:]+:(?<value>[0-9]+)\"/",
+        "refresh": 2,
+        "sort": 3,
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "1 \u00b7 Bytes/s into the shop, per port  (OBI network flows)",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (server_port) (rate(obi_network_flow_bytes_total{dst_cidr=\"shop\", direction=\"request\"}[1m]))",
+          "legendFormat": "port {{server_port}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "2 \u00b7 Who talks to the shop, on which port  (OBI network flows)",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (server_port, src_address, src_cidr) (rate(obi_network_flow_bytes_total{dst_cidr=\"shop\", direction=\"request\"}[1m])) > 0",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "server_port": 0,
+              "src_address": 1,
+              "src_cidr": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "server_port": "port",
+              "src_address": "peer",
+              "src_cidr": "peer cidr",
+              "Value": "bytes/s"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "port",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "3 \u00b7 Which process answers on each port  (OBI: service.instance.id = host:pid)",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (server_port, service_name, service_instance_id) (rate(http_server_request_duration_seconds_count[1m])) > 0",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "server_port": 0,
+              "service_name": 1,
+              "service_instance_id": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "server_port": "port",
+              "service_name": "process",
+              "service_instance_id": "host:pid",
+              "Value": "req/s"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "4 \u00b7 CPU per Python process  (eBPF profiler, 20 Hz)",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "grafana-pyroscope-datasource",
+        "uid": "pyroscope"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-pyroscope-datasource",
+            "uid": "pyroscope"
+          },
+          "queryType": "metrics",
+          "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
+          "labelSelector": "{service_name=~\"python3.12:.*\"}",
+          "groupBy": [
+            "service_name"
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ns",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "flamegraph",
+      "title": "5 \u00b7 What the process on port ${pid:text} runs: pid ${pid:raw}  (eBPF profiler, filtered by PID)",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 13
+      },
+      "datasource": {
+        "type": "grafana-pyroscope-datasource",
+        "uid": "pyroscope"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-pyroscope-datasource",
+            "uid": "pyroscope"
+          },
+          "queryType": "profile",
+          "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
+          "labelSelector": "{service_name=~\".+:${pid}\"}",
+          "groupBy": []
+        }
+      ]
+    }
+  ]
+}

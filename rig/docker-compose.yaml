@@ -1,0 +1,119 @@
+# KubeCon NA 2026 demo rig: one "VM" (the Docker Desktop Linux VM) watched by OBI network flows + the OTel eBPF profiler.
+#   make up       backends + shop + customers + OBI + profiler
+#   make incident start an unplanned HTTP listener on 4444 inside the shop container + an unknown peer polling it
+#   make calm     stop the incident
+name: threatsig
+networks:
+  default:
+    name: threatsig
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+services:
+  # ---- The workload we know about ------------------------------------------------------------
+  shop:
+    image: python:3.12-slim
+    container_name: shop
+    command: ["python", "/app/app.py"]
+    volumes: ["./apps/shop:/app:ro"]
+    ports: ["8080:8080"]
+    networks:
+      default:
+        ipv4_address: 172.30.0.10
+
+  loadgen:
+    image: busybox:latest
+    container_name: loadgen
+    command: ["sh", "/loop.sh"]
+    environment:
+      TARGET: http://shop:8080/checkout
+    volumes: ["./apps/loadgen/loop.sh:/loop.sh:ro"]
+    networks:
+      default:
+        ipv4_address: 172.30.0.20
+    depends_on: [shop]
+
+  # ---- The unknown peer (started by `make incident`): polls the unplanned listener on 4444 ------
+  unknown-client:
+    image: busybox:latest
+    container_name: unknown-client
+    command: ["sh", "/loop.sh"]
+    environment:
+      TARGET: http://172.30.0.10:4444/job
+    volumes: ["./apps/unknown-client/loop.sh:/loop.sh:ro"]
+    networks:
+      default:
+        ipv4_address: 172.30.0.66
+    profiles: ["incident"]
+
+  # ---- The two eBPF signals ---------------------------------------------------------------------
+  obi:
+    image: otel/ebpf-instrument:v1.0.0
+    container_name: obi
+    privileged: true
+    pid: "host"
+    network_mode: "host"          # host netns: the socket filter sees every container's traffic on the bridge
+    environment:
+      OTEL_EBPF_CONFIG_PATH: /etc/obi/config.yaml
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://127.0.0.1:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_EBPF_METRICS_FEATURES: application,network
+      OTEL_EBPF_METRICS_INTERVAL: 10s
+      OTEL_EBPF_LOG_LEVEL: INFO
+    volumes:
+      - ./obi/config.yaml:/etc/obi/config.yaml:ro
+      - /sys/kernel/tracing:/sys/kernel/tracing
+      - /sys/fs/cgroup:/sys/fs/cgroup
+      - /sys/fs/bpf:/sys/fs/bpf
+    depends_on: [otelcol]
+
+  profiler:
+    image: otel/opentelemetry-collector-ebpf-profiler:0.164.0
+    container_name: profiler
+    command: ["--config=/etc/profiler.yaml", "--feature-gates=service.profilesSupport"]
+    privileged: true
+    pid: "host"
+    volumes:
+      - ./profiler/config.yaml:/etc/profiler.yaml:ro
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    depends_on: [pyroscope]
+
+  # ---- Pipeline + backends --------------------------------------------------------------------
+  otelcol:
+    image: otel/opentelemetry-collector-contrib:0.164.0
+    container_name: otelcol
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes: ["./collector/config.yaml:/etc/otelcol/config.yaml:ro"]
+    ports: ["4317:4317", "4318:4318"]
+    depends_on: [prometheus]
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-otlp-receiver
+      - --storage.tsdb.retention.time=2d
+    volumes: ["./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+
+  pyroscope:
+    image: grafana/pyroscope:latest
+    container_name: pyroscope
+    ports: ["4040:4040"]
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3300:3000"]
+    depends_on: [prometheus, pyroscope]

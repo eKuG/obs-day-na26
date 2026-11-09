@@ -1,0 +1,5 @@
+
+[NEW PORT + NEW PEER] shop:4444  <-  172.30.0.66   705 B/s   (OBI network flow)
+   served by 'cache', host pid 37194   (OBI process discovery: service.instance.id)
+   pid 37194 uses 0.76 CPU cores   (eBPF profiler, last 60s)
+   100.0%  grind_nonce   <- never seen in this workload

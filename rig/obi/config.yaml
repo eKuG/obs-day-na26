@@ -1,0 +1,32 @@
+# OBI 1.0 as a host agent. Two jobs:
+#   1. application: RED metrics for ANY process that opens a port (we do not pre-register services; the attacker won't)
+#   2. network: L4 flows from a socket filter in the host netns, with addresses and ports kept on the record
+discovery:
+  instrument:
+    - open_ports: 1024-65535
+  exclude_instrument:
+    - exe_path: "*grafana*"
+    - exe_path: "*prometheus*"
+    - exe_path: "*pyroscope*"
+    - exe_path: "*otelcol*"
+    - exe_path: "*ebpf-profiler*"
+    - exe_path: "*docker*"
+    - exe_path: "*containerd*"
+
+network:
+  source: socket_filter
+  cache_active_timeout: 5s
+  cidrs:
+    - cidr: 172.30.0.10/32
+      name: shop
+    - cidr: 172.30.0.20/32
+      name: customers
+    - cidr: 172.30.0.0/24
+      name: vm-bridge
+
+attributes:
+  select:
+    obi_network_flow_bytes:
+      include: [direction, src.address, dst.address, src.name, dst.name, src.cidr, dst.cidr, server.port, transport]
+    obi_network_flow_packets:
+      include: [direction, src.address, dst.address, src.cidr, dst.cidr, server.port, transport]

@@ -1,0 +1,5 @@
+baseline for shop
+  ports  8080
+  peers  172.30.0.20
+  :8080 served by 'python3.12' pid 33915, functions: BaseHTTPRequestHandler.handle_one_request, BaseHTTPRequestHandler.send_header, FeedParser._parsegen, __pi_memcpy_generic, _raw_write_unlock_irq, fib
+saved /Users/ekansh.gupta/Documents/kubecon-na-2026-ebpf/rig/baseline.json
